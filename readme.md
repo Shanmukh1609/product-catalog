@@ -1,147 +1,108 @@
-Node.js Caching & Rate Limiting with Redis, Postgres & Docker
-This project is a complete, containerized Node.js application that serves as a practical guide to implementing advanced backend concepts. It demonstrates a full Create, Read, Update, Delete (CRUD) API for a product catalog, protected by an IP-based rate limiter and optimized with a Redis caching layer.
+# Node.js Caching and Rate Limiting with Redis & PostgreSQL
+This project is a comprehensive product catalog API designed to demonstrate core concepts of backend development, including caching strategies, rate limiting, and containerization with Docker. It provides a full-stack, database-driven application environment managed entirely by Docker Compose.
 
-The entire stack, including the Node.js application, a PostgreSQL database, a Redis server, and a pgAdmin interface, is orchestrated with Docker Compose for easy setup and development.
+## **Features**
+- **Full CRUD API**: Create, Read, Update, and Delete products.
+- **Caching Layer**: High-performance caching with Redis to reduce database load.
+- **Rate Limiting**: Middleware to protect create, update, and delete endpoints from abuse.
+- **Database Integration**: Persistent data storage using a PostgreSQL database.
+- **Containerized Environment**: The entire stack (Node.js, Postgres, Redis, pgAdmin) is managed with Docker and Docker Compose for easy setup and consistent environments.
+- **Persistent Data**: Utilizes Docker volumes to ensure database and pgAdmin data is saved across container restarts.
 
-Features
-CRUD API: Full API for managing products (Create, Read, Update, Delete).
+## Technical Deep Dive
+This project serves as a practical guide to several important backend patterns.
 
-Redis Caching: A "Cache-Aside" strategy to reduce database load and improve response times for frequent requests.
+**Caching with Redis (Cache-Aside Pattern)**
+To improve performance and reduce database hits, the application implements a Cache-Aside strategy for fetching products.
 
-IP-Based Rate Limiting: Middleware to protect POST, PUT, and DELETE endpoints from abuse, limiting requests per IP address within a time window.
+Check Cache First: When a request for a product is received (GET /products/:id), the application first checks if the product data exists in the Redis cache using a key (e.g., product:101).
 
-Fully Containerized: The entire application stack is defined in a docker-compose.yml file for one-command setup.
+Cache Hit: If the data is found in Redis, it is immediately returned to the client. This is extremely fast and avoids any interaction with the database.
 
-Persistent Data: Uses Docker Volumes to ensure that your PostgreSQL and pgAdmin data is saved even when the containers are stopped or removed.
+Cache Miss: If the data is not in Redis, the application queries the PostgreSQL database to fetch the product.
 
-Core Concepts Demonstrated
-This project is designed to be a learning resource. Here’s a breakdown of the key techniques used:
+Populate Cache: The retrieved data is then saved to the Redis cache with an expiration time (e.g., 1 hour). This ensures that subsequent requests for the same product will be a "Cache Hit".
 
-How Redis is Used for Caching
-We implement the Cache-Aside pattern to dramatically speed up data retrieval (GET requests).
+Rate Limiting
+To protect sensitive endpoints (POST, PUT, DELETE), a rate-limiting middleware is used.
 
-Check the Cache First: When a request for a product (e.g., /products/101) arrives, the application first checks if an entry for product:101 exists in Redis.
+IP-Based Tracking: It uses the client's IP address as a unique identifier.
 
-Cache Hit: If the data is found in Redis, it is immediately returned to the user. This is extremely fast and avoids any interaction with the database.
+Redis INCR: For each request, it uses the atomic INCR command in Redis on a key like rate-limit:127.0.0.1.
 
-Cache Miss: If the data is not in Redis, the application queries the main PostgreSQL database to get the product information.
+Sliding Window: On the first request within a time window (e.g., 60 seconds), it sets an EXPIRE on the key. This creates a sliding window for rate limiting.
 
-Populate the Cache: Before sending the data to the user, it is saved in Redis with an expiration time (e.g., 1 hour). This ensures that the next request for this same product will be a fast "Cache Hit".
+Blocking: If the request count for an IP exceeds the defined limit (e.g., 10 requests), the server responds with a 429 Too Many Requests error and blocks the request.
 
-How Cache Invalidation is Handled
-Keeping the cache and the database in sync is critical. We invalidate the cache to prevent serving stale or incorrect data.
+Cache Invalidation
+Keeping the cache and the database in sync is critical. This project uses a common invalidation strategy:
 
-On Update/Delete: When a request is made to change data (e.g., UPDATE or DELETE a product), the operation is first performed on the primary data source, our PostgreSQL database.
+On Update (PUT): When a product's details are updated, the application sends the UPDATE command to PostgreSQL. Upon a successful update, it immediately sends a DEL command to Redis to delete the old, stale cache entry for that product (e.g., DEL product:101).
 
-Delete from Cache: Immediately after the database is successfully updated, the application sends a DEL command to Redis to delete the old, stale entry from the cache (e.g., DEL product:101).
+On Delete (DELETE): Similarly, when a product is deleted from PostgreSQL, its corresponding entry is also deleted from the Redis cache.
 
-Forced Cache Miss: This guarantees that the next GET request for this product will be a "Cache Miss," forcing the application to fetch the fresh, updated data from the database and repopulate the cache with the correct information.
+This strategy ensures that the next time the updated or deleted product is requested, it will result in a "Cache Miss," forcing the application to fetch the fresh data from the database and repopulate the cache.
 
-How Rate Limiting is Implemented
-To protect our API from spam or denial-of-service attacks, we use an IP-based rate-limiting middleware for sensitive endpoints.
 
-Unique Key: We use the client's IP address to create a unique key in Redis (e.g., rate-limit:192.168.1.10).
+How to Run This Project
+This entire application is managed by Docker Compose.
 
-Increment on Request: With every request, we use the atomic INCR command in Redis to increment the count for that key.
+## Prerequisites
+Docker installed on your machine.
 
-Set Time Window: The very first time a user makes a request, we also set an EXPIRE command on their key (e.g., 60 seconds). This creates the time window.
-
-Check Limit: If the count for an IP address exceeds our defined limit (e.g., 10 requests) within that window, the request is blocked with a 429 Too Many Requests error.
-
-Docker Integration & Data Persistence
-The entire project runs in a set of isolated containers managed by Docker Compose.
-
-Dockerfile: Defines the steps to build a production-ready, multi-stage image for our Node.js application.
-
-docker-compose.yml: Orchestrates the entire stack. It defines four services (app, redis, postgres, pgadmin) and connects them all on a private Docker network. This allows the containers to communicate using their service names (e.g., the app connects to the database using the hostname postgres).
-
-Docker Volumes: To ensure our database data is not lost when containers are stopped, we use a named volume (postgres_data). This volume maps the data directory inside the PostgreSQL container to a managed location on the host machine, effectively making our data persistent.
-
-Tech Stack
-Backend: Node.js, Express.js
-
-Database: PostgreSQL
-
-Caching / Rate Limiting: Redis
-
-Containerization: Docker, Docker Compose
-
-Database Management: pgAdmin 4
-
-Getting Started
-Follow these instructions to get the project up and running on your local machine.
-
-Prerequisites
-Node.js (v18 or higher)
-
-Docker and Docker Compose
-
-How to Run the Project
+Setup Instructions
 Clone the repository:
+``` (shell)
+git clone <your-repository-url>
+cd <your-project-folder>
+```
+Create an environment file:
+Create a .env file in the root of the project and populate it with the necessary credentials. An example is provided below:
 
-git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
-cd your-repo-name
+## Node.js App
+``` PORT=3000 ```
 
-Create the environment file:
-Create a .env file in the root of the project by copying the example file.
+## Redis Connection
+``` REDIS_URL=redis://redis:6379 ```
 
-cp .env.example .env
-
-This file contains all the necessary environment variables, including the passwords and database names.
+# PostgreSQL Credentials
+```
+POSTGRES_USER=myuser
+POSTGRES_PASSWORD=mypassword
+POSTGRES_DB=mydb
+```
+```
+# Database Connection for Node App
+DB_HOST=postgres
+DB_USER=myuser
+DB_PASSWORD=mypassword
+DB_NAME=mydb
+DB_PORT=5432
+```
 
 Build and run the containers:
-This single command will build your Node.js image and start all the services in the background.
+Run the following command from the project root. The --build flag is important for the first run or after any code changes.
+``` (shell)
+docker-compose up --build
+```
+To run in the background (detached mode):
+``` (shell)
+docker-compose up -d --build
+```
+Accessing the services:
+```
+API: http://localhost:3000
+```
 
-docker-compose up --build -d
-
-Access the application:
-
-API: Your application will be running at http://localhost:3000.
-
-pgAdmin: The database management interface will be available at http://localhost:8080. (Login with the credentials in the docker-compose.yml file).
-
-To stop the application:
-
+Stopping the application:
+```
 docker-compose down
+```
+## API END POINTS
 
-API Endpoints
-Method
-
-Endpoint
-
-Description
-
-Request Body (Example)
-
-GET
-
-/products/:id
-
-Get a single product by its ID.
-
-N/A
-
-POST
-
-/products
-
-Create a new product.
-
-{"id": "103", "name": "4K Monitor", "price": 350, "stock": 50}
-
-PUT
-
-/products/updateProduct/:id
-
-Update an existing product.
-
-{"price": 375.50, "stock": 45}
-
-DELETE
-
-/products/deleteProduct/:id
-
-Delete a product by its ID.
-
-N/A
-
+| Method  | Endpoint         | Description                                 |
+|---------|------------------|---------------------------------------------|
+| GET     | /products/:id    | Get a single product by its ID. (Cached)    |
+| POST    | /products/       | Create a new product. (Rate Limited)        |
+| PUT     | /products/:id    | Update an existing product. (Rate Limited)  |
+| DELETE  | /products/:id    | Delete a product. (Rate Limited)            |
