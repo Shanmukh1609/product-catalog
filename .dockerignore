@@ -1,0 +1,15 @@
+# Ignore dependencies, as they will be installed inside the container
+node_modules
+
+# Ignore log files
+*.log
+
+# Ignore local environment files
+.env
+
+#Ignore Docker files
+Dockerfile
+docker-compose.yml
+
+# Ignore git repository
+.git
