@@ -15,9 +15,6 @@ RUN npm install
 # Copy the rest of the application code
 COPY . .
 
-# Build the application
-RUN npm run build
-
 # Stage 2: Use a lightweight Node.js image to run the application
 FROM node:20-alpine AS runner
 
