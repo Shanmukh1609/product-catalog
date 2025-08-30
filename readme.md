@@ -1,4 +1,4 @@
-# Node.js Caching and Rate Limiting with Redis & PostgreSQL
+# Product-Catalog API
 This project is a comprehensive product catalog API designed to demonstrate core concepts of backend development, including caching strategies, rate limiting, and containerization with Docker. It provides a full-stack, database-driven application environment managed entirely by Docker Compose.
 
 ## **Features**
